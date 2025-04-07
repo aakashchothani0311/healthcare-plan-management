@@ -1,0 +1,27 @@
+# Node.js dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+
+# Build and coverage directories
+build/
+coverage/
+
+# Optional: if you're using Docker
+docker-compose.yml
+Dockerfile
+
+INFO 7255 - Demo 1
