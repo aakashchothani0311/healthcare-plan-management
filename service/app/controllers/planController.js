@@ -1,4 +1,5 @@
 import { postValidate, patchValidate } from '../model/plan.js';
+import { sendMsgToQ } from '../services/rabbitmq-producer.js';
 import { generateETag, patchPlan } from './helper.js';
 import { setResponse, setError } from './responseHandler.js';
 
@@ -17,6 +18,7 @@ export const post = async(req, res, client) => {
                 await client.set(planId, JSON.stringify(newPlan));
 
                 res.setHeader('etag', generateETag(newPlan));
+                sendMsgToQ({ method: 'post', response: newPlan, planId: planId });
                 setResponse(newPlan, res, 201);
             }
         } else
@@ -77,7 +79,9 @@ export const patch = async (req, res, client) => {
 
                         if(postValid){
                             await client.set(planId, JSON.stringify(patchedPlan));
+
                             res.setHeader('etag', generateETag(patchedPlan));
+                            sendMsgToQ({ method: 'patch', response: patchedPlan, planId: planId });
                             setResponse(patchedPlan, res);
                         } else
                             setError({name: 'TypeError', message: 'Patch operation unsuccessful. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
@@ -98,9 +102,10 @@ export const del = async (req, res, client) => {
         const planId = req.params.id;
         const planDeleted = await client.del(planId);
 
-        if(planDeleted == 1)
+        if(planDeleted == 1){
             setResponse(planDeleted, res);
-        else
+            sendMsgToQ({ method: 'delete', planId: planId });
+        } else
             setError({name: 'InvalidId', message: 'Plan ' + planId + ' does not exist or is already deleted.'}, res);
     } catch (error) {
         setError(error, res);

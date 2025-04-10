@@ -1,4 +1,4 @@
-import { sendMsgToQ } from '../services/rabbitmq-producer.js';
+import { sendMsgToQ } from'../services/rabbitmq-producer.js';
 
 export const setResponse = (data, response, statusCode = 200) => {
     response.status(statusCode).json(data);
@@ -13,7 +13,7 @@ export const setError = (error, response) => {
             }
         });
     } else if (error.name === 'Unauthorized') {
-        sendMsgToQ();
+        sendMsgToQ("test");
         response.status(401).json({
             error: {
                 code: 'Authorization Error',
