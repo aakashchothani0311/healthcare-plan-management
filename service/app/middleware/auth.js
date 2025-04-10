@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { setError } from '../controllers/responseHandler.js';
+import { setError } from '../utils/responseHandler.js';
 
 const validateIdToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];

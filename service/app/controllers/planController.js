@@ -1,7 +1,7 @@
 import { postValidate, patchValidate } from '../model/plan.js';
 import { sendMsgToQ } from '../services/rabbitmq-producer.js';
-import { generateETag, patchPlan } from './helper.js';
-import { setResponse, setError } from './responseHandler.js';
+import { generateETag, patchPlan } from '../utils/helper.js';
+import { setResponse, setError } from '../utils/responseHandler.js';
 
 export const post = async(req, res, client) => {
     try {
@@ -13,16 +13,14 @@ export const post = async(req, res, client) => {
             const getPlan = await client.get(planId);
 
             if(getPlan != null){
-                setError({name: 'Conflict', message: 'Plan already exists. Can not be added again.'}, res);
+                setError({ name: 'Conflict', message: 'Plan already exists. Can not be added again.' }, res);
             } else {
-                await client.set(planId, JSON.stringify(newPlan));
-
                 res.setHeader('etag', generateETag(newPlan));
-                sendMsgToQ({ method: 'post', response: newPlan, planId: planId });
+                sendMsgToQ({ method: 'post', planId: planId, planData: newPlan });
                 setResponse(newPlan, res, 201);
             }
         } else
-            setError({name: 'TypeError', message: 'Plan can not be created. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
+            setError({ name: 'TypeError', message: 'Plan can not be created. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
     } catch (error) {
         setError(error, res);
     }
@@ -44,7 +42,7 @@ export const get = async (req, res, client) => {
             else
                 setResponse(planJson, res);
         } else
-            setError({name: 'InvalidId', message: 'Plan ' + planId + ' does not exist.'}, res);
+            setError({ name: 'InvalidId', message: 'Plan ' + planId + ' does not exist.' }, res);
     } catch (error) {
         setError(error, res);
     }
@@ -66,32 +64,30 @@ export const patch = async (req, res, client) => {
                 const headerETag = req.headers['if-match'];
 
                 if(!headerETag)
-                    setError({name: 'TypeError', message: 'If-Match not provided.'}, res);
+                    setError({ name: 'TypeError', message: 'If-Match not provided.' }, res);
                 else if(headerETag && headerETag != eTag)
                     setResponse('', res, 412);
                 else if(headerETag && headerETag == eTag){
                     const patchedPlan = patchPlan(oldPlan, newPlan);
 
                     if(generateETag(patchedPlan) == eTag)
-                        setError({name: 'Conflict', message: 'Plan already exists. Can not perform patch again.'}, res);
+                        setError({ name: 'Conflict', message: 'Plan already exists. Can not perform patch again.' }, res);
                     else {
                         const postValid = postValidate(patchedPlan);
 
                         if(postValid){
-                            await client.set(planId, JSON.stringify(patchedPlan));
-
                             res.setHeader('etag', generateETag(patchedPlan));
-                            sendMsgToQ({ method: 'patch', response: patchedPlan, planId: planId });
+                            sendMsgToQ({ method: 'patch', planId: planId, planData: patchedPlan });
                             setResponse(patchedPlan, res);
                         } else
-                            setError({name: 'TypeError', message: 'Patch operation unsuccessful. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
+                            setError({ name: 'TypeError', message: 'Patch operation unsuccessful. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
     
                     }
                 }
             } else
-                setError({name: 'InvalidId', message: 'No plan(s) found with the id: ' + planId}, res);
+                setError({ name: 'InvalidId', message: 'No plan(s) found with the id: ' + planId }, res);
         } else
-            setError({name: 'TypeError', message: 'Patch operation unsuccessful. ' + patchValidate.errors[0].instancePath + ': ' + patchValidate.errors[0].message }, res);
+            setError({ name: 'TypeError', message: 'Patch operation unsuccessful. ' + patchValidate.errors[0].instancePath + ': ' + patchValidate.errors[0].message }, res);
     } catch (error) {
         setError(error, res);
     }
@@ -100,13 +96,13 @@ export const patch = async (req, res, client) => {
 export const del = async (req, res, client) => {
     try {
         const planId = req.params.id;
-        const planDeleted = await client.del(planId);
+        const planToDelete = await client.del(planId);
 
-        if(planDeleted == 1){
-            setResponse(planDeleted, res);
+        if(planToDelete != null){
             sendMsgToQ({ method: 'delete', planId: planId });
+            setResponse('Plan deleted', res);
         } else
-            setError({name: 'InvalidId', message: 'Plan ' + planId + ' does not exist or is already deleted.'}, res);
+            setError({ name: 'InvalidId', message: 'Plan ' + planId + ' does not exist or is already deleted.' }, res);
     } catch (error) {
         setError(error, res);
     }
