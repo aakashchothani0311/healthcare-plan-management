@@ -1,7 +1,7 @@
-import amqp from "amqplib";
-import { redisRoute } from "./redis-service";
+import amqp from 'amqplib';
+import { redisRoute } from './redis-service.js';
 
-export const readMsgFromQ = async () => {
+const readMsgFromQ = async () => {
     try {
         const connection = await amqp.connect(process.env.RABBITMQ_CONNECTION);
         const channel = await connection.createChannel();
@@ -14,7 +14,7 @@ export const readMsgFromQ = async () => {
         await channel.assertQueue(process.env.RABBITMQ_QUEUE, { durable: false });
         await channel.consume(process.env.RABBITMQ_QUEUE, message => {
             if (message) {
-                redisRoute();
+                redisRoute(message);
                 channel.ack(message);
             } 
         });
@@ -22,3 +22,5 @@ export const readMsgFromQ = async () => {
         console.error('error in reading message from queue', err);
     }
 };
+
+export default readMsgFromQ;

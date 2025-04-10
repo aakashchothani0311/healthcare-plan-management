@@ -6,7 +6,7 @@ export const generateETag = (data) => {
     return `W/"${hash.digest('hex')}"`;
 }
 
-export const patchPlan = (oldPlan, newPlan) => {
+export const genPatchPlan = (oldPlan, newPlan) => {
     const patchedPlan = { ...oldPlan };
 
     if (newPlan.planCostShares)

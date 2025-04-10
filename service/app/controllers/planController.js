@@ -1,18 +1,19 @@
 import { postValidate, patchValidate } from '../model/plan.js';
-import { sendMsgToQ } from '../services/rabbitmq-producer.js';
-import { generateETag, patchPlan } from '../utils/helper.js';
+import sendMsgToQ from '../services/rabbitmq-producer.js';
+import { getPlan } from '../services/redis-service.js';
+import { generateETag, genPatchPlan } from '../utils/helper.js';
 import { setResponse, setError } from '../utils/responseHandler.js';
 
-export const post = async(req, res, client) => {
+export const post = async(req, res) => {
     try {
         const newPlan = {...req.body};
         const valid = postValidate(newPlan);
 
         if(valid){
             const planId = newPlan.objectId;
-            const getPlan = await client.get(planId);
+            const plan = await getPlan(planId);
 
-            if(getPlan != null){
+            if(plan != null){
                 setError({ name: 'Conflict', message: 'Plan already exists. Can not be added again.' }, res);
             } else {
                 res.setHeader('etag', generateETag(newPlan));
@@ -26,10 +27,10 @@ export const post = async(req, res, client) => {
     }
 }
 
-export const get = async (req, res, client) => {
+export const get = async (req, res) => {
     try {
         const planId = req.params.id;
-        const plan = await client.get(planId);
+        const plan = await getPlan(planId);
 
         if(plan != null){
             const planJson = JSON.parse(plan);
@@ -55,7 +56,7 @@ export const patch = async (req, res, client) => {
 
         if(valid){
             const planId = req.params.id;
-            const plan = await client.get(planId);
+            const plan = await getPlan(planId);
     
             if(plan != null) {
                 const oldPlan = JSON.parse(plan);
@@ -68,7 +69,7 @@ export const patch = async (req, res, client) => {
                 else if(headerETag && headerETag != eTag)
                     setResponse('', res, 412);
                 else if(headerETag && headerETag == eTag){
-                    const patchedPlan = patchPlan(oldPlan, newPlan);
+                    const patchedPlan = genPatchPlan(oldPlan, newPlan);
 
                     if(generateETag(patchedPlan) == eTag)
                         setError({ name: 'Conflict', message: 'Plan already exists. Can not perform patch again.' }, res);
@@ -81,7 +82,6 @@ export const patch = async (req, res, client) => {
                             setResponse(patchedPlan, res);
                         } else
                             setError({ name: 'TypeError', message: 'Patch operation unsuccessful. ' + postValidate.errors[0].instancePath + ': ' + postValidate.errors[0].message }, res);
-    
                     }
                 }
             } else
@@ -93,10 +93,10 @@ export const patch = async (req, res, client) => {
     }
 };
 
-export const del = async (req, res, client) => {
+export const del = async (req, res) => {
     try {
         const planId = req.params.id;
-        const planToDelete = await client.del(planId);
+        const planToDelete = await getPlan(planId);
 
         if(planToDelete != null){
             sendMsgToQ({ method: 'delete', planId: planId });

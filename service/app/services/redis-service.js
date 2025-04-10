@@ -10,21 +10,29 @@ export const initRedis = async() => {
 
         await client.connect();
     }
-    return client;
 };
 
 export const redisRoute = (message) => {
-    if(message.method == 'post')
-        setPlan(message.planId, message.planData);
-    else if(message.method == 'patch')
-        patchPlan(message.planId, message.planData);
-    else if(message.method == 'delete')
+    const jsonMsg = JSON.parse(message.content.toString());
+    const method = jsonMsg.method;
+    const planId = jsonMsg.planId
+    const plan = jsonMsg.planData;
+
+    if(method == 'post')
+        setPlan(planId, plan);
+    else if(method == 'patch')
+        patchPlan(planId, plan);
+    else if(method == 'delete')
         deletePlan(planId);
 };
 
 const setPlan = async(planId, newPlan) => {
     await client.set(planId, JSON.stringify(newPlan));
 };
+
+export const getPlan = async(planId) => {
+    return await client.get(planId);
+}
 
 const patchPlan = async(planId, patchedPlan) => {
     await client.set(planId, JSON.stringify(patchedPlan));
