@@ -6,7 +6,7 @@ export const initRedis = async() => {
     if(!client){
         client = createClient();
         client.on('connect', () => console.log('Reddis connected!'))
-              .on('error', err => console.log('Redis client error', err));
+              .on('error', err => console.log('error from reddis client', err));
 
         await client.connect();
     }
@@ -14,14 +14,12 @@ export const initRedis = async() => {
 
 export const redisRoute = (message) => {
     const jsonMsg = JSON.parse(message.content.toString());
-    const method = jsonMsg.method;
-    const planId = jsonMsg.planId
-    const plan = jsonMsg.planData;
+    const { method, planId, planData } = jsonMsg;
 
     if(method == 'post')
-        setPlan(planId, plan);
+        setPlan(planId, planData);
     else if(method == 'patch')
-        patchPlan(planId, plan);
+        patchPlan(planId, planData);
     else if(method == 'delete')
         deletePlan(planId);
 };

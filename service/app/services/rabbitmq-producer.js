@@ -10,7 +10,7 @@ const sendMsgToQ = async(msg) => {
 		channel.sendToQueue(process.env.RABBITMQ_QUEUE, Buffer.from(JSON.stringify(msg)));
 		await channel.close();
 	} catch (err) {
-		console.error('error in sending message to queue', err);
+		console.error('error sending message to queue', err);
 	} finally {
 		if (connection)
 			await connection.close();
