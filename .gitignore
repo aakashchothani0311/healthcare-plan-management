@@ -20,8 +20,5 @@ Thumbs.db
 build/
 coverage/
 
-# Optional: if you're using Docker
-docker-compose.yml
-Dockerfile
 
 INFO 7255 - Demo 1
