@@ -21,7 +21,7 @@ const readMsgFromQ = async () => {
 
 const messageHandler = (channel, message) => {
     if (message) {
-    //    redisRoute(message);
+        redisRoute(message);
         storeToElk(message);
         channel.ack(message);
     } 

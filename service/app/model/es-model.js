@@ -1,40 +1,58 @@
 const esPlanModel = {
     index: 'healthcare-plans',
-  
-    joinField: {
-        name: 'relation',
-        relations: {
-            plan: ['planCostShare', 'planService']
-        }
-    },
-  
-    getPlanDocument: (plan) => {
-        if (!plan.objectId || !plan.planType || !plan.creationDate)
-            throw new Error('Invalid plan data: missing objectId, planType, or creationDate');
-    
-        return { ...plan, relation: 'plan' };
-    },
+    body: {
+        mappings: {
+            properties: {
+                planType: { type: 'keyword' },
+                _org: { type: 'keyword' },
+                objectId: { type: 'keyword' },
+                objectType: { type: 'keyword' },
+                creationDate: { type: 'date', format: 'dd-MM-yyyy' },
+                
+                planCostShares: {
+                    properties: {
+                        deductible: { type: 'integer' },
+                        copay: { type: 'integer' },
+                        _org: { type: 'keyword' },
+                        objectId: { type: 'keyword' },
+                        objectType: { type: 'keyword' }
+                    }
+                },
 
-    getPlanCostShareDocument: (costShare, parentId) => {
-        if (!costShare.objectId || costShare.copay == null || costShare.deductible == null)
-            throw new Error('Invalid planCostShare data: missing objectId, copay, or deductible');
-  
-        return {
-            ...costShare,
-            relation: { name: 'planCostShare', parent: parentId },
-        };
-    },
-  
-    getPlanServiceDocument: (service, parentId) => {
-        if (!service.objectId || !service.linkedService || !service.planserviceCostShares)
-            throw new Error('Invalid planService data: missing objectId, linkedService, or planserviceCostShares');
-    
-        return {
-            ...service,
-            relation: { name: 'planService', parent: parentId },
-        };
+                linkedPlanServices: {
+                    type: 'nested',
+                    properties: {
+                        linkedService: {
+                            properties: {
+                                _org: { type: 'keyword' },
+                                objectId: { type: 'keyword' },
+                                objectType: { type: 'keyword' },
+                                name: { type: 'text' }
+                            }
+                        },
+
+                        planserviceCostShares: {
+                            properties: {
+                                deductible: { type: 'integer' },
+                                copay: { type: 'integer' },
+                                _org: { type: 'keyword' },
+                                objectId: { type: 'keyword' },
+                                objectType: { type: 'keyword' }
+                            }
+                        }
+                    }
+                },
+
+                join_field: {
+                    type: 'join',
+                    relations: {
+                        plan: ['linkedPlanServices', 'planCostShares'],
+                        linkedPlanServices: ['linkedService', 'planserviceCostShares']
+                    }
+                }
+            }
+        }
     }
 };
 
 export default esPlanModel;
-  
