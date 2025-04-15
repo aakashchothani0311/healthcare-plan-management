@@ -86,8 +86,52 @@ const addToIndex = async(index, planId, document) => {
     await elkClient.bulk({ refresh: true, body: bulkOps });
 };
 
-const updateIndex = async(index, id, doc) => {
-    await elkClient.update({ index, id, doc });
+const updateIndex = async(index, planId, document) => {
+    const bulkOps = [];
+
+    const planProps = selectProps(document, ['planType', '_org', 'objectId', 'objectType', 'creationDate']);
+    bulkOps.push(
+        { update: { _index: index, _id: planId } },
+        { doc: { ...planProps }, doc_as_upsert: true }
+    );
+
+    if (document.planCostShares) {
+        const planCostShareProps = selectProps(document.planCostShares, ['deductible', 'copay', '_org', 'objectId', 'objectType']);
+        bulkOps.push(
+            { update: { _index: index, _id: document.planCostShares.objectId, routing: planId } },
+            { doc: {...planCostShareProps, join_field: { name: 'planCostShares', parent: planId } }, doc_as_upsert: true }
+        );
+    }
+
+    if (Array.isArray(document.linkedPlanServices)) {
+        for (const svc of document.linkedPlanServices) {
+            const planSvcId = svc.objectId;
+
+            const linkedPlanServicesProps = selectProps(svc, ['_org', 'objectId', 'objectType']);
+            bulkOps.push(
+                { update: { _index: index, _id: planSvcId, routing: planId } },
+                { doc: { ...linkedPlanServicesProps, join_field: { name: 'linkedPlanServices', parent: planId } }, doc_as_upsert: true }
+            );
+
+            if (svc.linkedService) {
+                const linkedServiceProps = selectProps(svc.linkedService, ['name', '_org', 'objectId', 'objectType']);
+                bulkOps.push(
+                    { update: { _index: index, _id: svc.linkedService.objectId, routing: planId } },
+                    {doc: { ...linkedServiceProps, join_field: { name: 'linkedService', parent: planSvcId } }, doc_as_upsert: true }
+                );
+            }
+
+            if (svc.planserviceCostShares) {
+                const planserviceCostSharesProps = selectProps(svc.planserviceCostShares, ['deductible', 'copay', '_org', 'objectId', 'objectType']);
+                bulkOps.push(
+                    { update: { _index: index, _id: svc.planserviceCostShares.objectId, routing: planId } },
+                    { doc: { ...planserviceCostSharesProps, join_field: { name: 'planserviceCostShares', parent: planSvcId } }, doc_as_upsert: true }
+                );
+            }
+        }
+    }
+
+    await elkClient.bulk({ refresh: true, body: bulkOps });
 };
 
 const deleteFromIndex = async (index, objectId) => {

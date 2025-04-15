@@ -29,20 +29,27 @@ const setPlan = async(planId, newPlan) => {
 
     addToRedis[planId] = newPlan;
 
-    if(newPlan.planCostShares)
+    if(newPlan.planCostShares) {
         addToRedis[newPlan.planCostShares.objectId] = newPlan.planCostShares;
-
-    if(newPlan.linkedPlanServices){
+        addToRedis[`ref:${newPlan.planCostShares.objectId}`] = planId;
+    }
+        
+    if(newPlan.linkedPlanServices) {
         const planServices = newPlan.linkedPlanServices;
         
         planServices.forEach(planSvc => {
             addToRedis[planSvc.objectId] = planSvc;
+            addToRedis[`ref:${planSvc.objectId}`] = planId;
 
-            if(planSvc.linkedService)
+            if(planSvc.linkedService){
                 addToRedis[planSvc.linkedService.objectId] = planSvc.linkedService;
+                addToRedis[`ref:${planSvc.linkedService.objectId}`] = planSvc.objectId;
+            }          
 
-            if(planSvc.planserviceCostShares)
+            if(planSvc.planserviceCostShares) {
                 addToRedis[planSvc.planserviceCostShares.objectId] = planSvc.planserviceCostShares;
+                addToRedis[`ref:${planSvc.planserviceCostShares.objectId}`] = planSvc.objectId;
+            }        
         });
     }
 
@@ -55,36 +62,102 @@ export const getPlan = async(planId) => {
 }
 
 const patchPlan = async(planId, patchedPlan) => {
-    await client.set(planId, JSON.stringify(patchedPlan));
+    await setPlan(planId, patchedPlan);
 };
 
 const deletePlan = async(planId) => {
-    const child = await getPlan(planId);
-    const jsonChild = JSON.parse(child);
     const keysToDel = [planId];
 
-    if(jsonChild?.planCostShares)
-        keysToDel.push(jsonChild.planCostShares.objectId);
+    const newPlan = await removeFromParent(planId, planId, keysToDel);
+   // console.log('newPlan', newPlan);
 
+    const child = await getPlan(planId);
+    const jsonChild = JSON.parse(child);
+
+    if(jsonChild?.planCostShares) {
+        keysToDel.push(jsonChild.planCostShares.objectId);
+        keysToDel.push(`ref:${jsonChild.planCostShares.objectId}`);
+    }
+        
     if(jsonChild?.linkedPlanServices){
         jsonChild.linkedPlanServices.forEach(svc => {
-            if(svc.linkedService)
+            if(svc.linkedService){
                 keysToDel.push(svc.linkedService.objectId);
+                keysToDel.push(`ref:${svc.linkedService.objectId}`);
+            }
 
-            if(svc.planserviceCostShares)
+            if(svc.planserviceCostShares){
                 keysToDel.push(svc.planserviceCostShares.objectId);
-
+                keysToDel.push(`ref:${svc.planserviceCostShares.objectId}`);
+            }
+            
             keysToDel.push(svc.objectId);
+            keysToDel.push(`ref:${svc.objectId}`);
         })
     }
 
     if(jsonChild?.objectType == 'planservice'){
-        if(jsonChild.linkedService)
+        if(jsonChild.linkedService) {
             keysToDel.push(jsonChild.linkedService.objectId);
+            keysToDel.push(`ref:${jsonChild.linkedService.objectId}`);
+        }
 
-        if(jsonChild.planserviceCostShares)
+        if(jsonChild.planserviceCostShares){
             keysToDel.push(jsonChild.planserviceCostShares.objectId);
+            keysToDel.push(`ref:${jsonChild.planserviceCostShares.objectId}`);
+        }
     }
 
+  //  console.log('keysToDel', keysToDel);
+
     await client.del(keysToDel);
+
+    if(jsonChild.objectType != 'plan')
+        await setPlan(newPlan.objectId, newPlan);
 };
+
+const removeFromParent = async (planId, idToDel, keysToDel) => {
+    const parentRef = await client.get(`ref:${planId}`);
+
+    if(parentRef != null) {
+        const parent = await getPlan(JSON.parse(parentRef));
+        const jsonParent = JSON.parse(parent);
+
+        return removeFromParent(jsonParent.objectId, idToDel, keysToDel);
+    } else {
+        const plan = await getPlan(planId);
+        const jsonPlan = JSON.parse(plan);
+
+        if(jsonPlan.planCostShares?.objectId == idToDel){
+            keysToDel.push(`ref:${idToDel}`);
+            delete jsonPlan.planCostShares;
+        }
+        
+        if (Array.isArray(jsonPlan.linkedPlanServices)) {
+            jsonPlan.linkedPlanServices = jsonPlan.linkedPlanServices.filter(svc => {
+                if (!svc) return true;
+
+                // if (svc.objectId === idToDel)
+                //     return false;
+        
+                if (svc.linkedService?.objectId === idToDel){
+                    delete svc.linkedService;
+                    keysToDel.push(`ref:${idToDel}`);
+                }
+                   
+        
+                if (svc.planserviceCostShares?.objectId === idToDel){
+                    delete svc.planserviceCostShares;
+                    keysToDel.push(`ref:${idToDel}`);
+                }
+                    
+                if(svc.objectId == idToDel)
+                    keysToDel.push(`ref:${idToDel}`);
+
+                return svc.objectId !== idToDel;
+            });
+        }
+
+        return jsonPlan;
+    }
+}
